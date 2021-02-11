@@ -120,6 +120,7 @@
   (let ((px 0.0d0)
 	      (py 0.0d0)
 	      (pz 0.0d0))
+    (declare (type double-float px py pz))
     (dolist (p system)
       (incf px (* (vx p) (mass p)))
       (incf py (* (vy p) (mass p)))
