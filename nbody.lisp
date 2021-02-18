@@ -27,6 +27,17 @@
 ;; --------------- V3D -----------------------
 (deftype v3d () '(simd-pack-256 double-float))
 
+;; (when (not (zerop (sb-alien:extern-alien "avx2_supported" int))) "YES")
+
+;; #.(when (member :sb-simd-pack-256 sb-impl:+internal-features+)
+;;     (defun toto ()
+;;       "yes"))
+
+;; #.(when (not (member :sb-simd-pack-256 sb-impl:+internal-features+))
+;;     (defun toto ()
+;;       "no"))
+
+
 (declaim (inline make-v3d))
 (defun make-v3d (x y z)
   (declare (type double-float x y z))
