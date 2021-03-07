@@ -20,7 +20,9 @@
 ;; (declaim (optimize (speed 3)(safety 0)(space 0)(debug 0)))
 
 (defpackage #:nbody
-  (:use :cl :sb-ext :sb-c))
+  (:use :cl :sb-ext :sb-c)
+  (:export #:main
+           #:nbody))
 
 (in-package :nbody)
 

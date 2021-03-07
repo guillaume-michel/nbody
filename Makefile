@@ -23,4 +23,4 @@ bench: nbody_rust nbody_cpp nbody_lisp
 	@time ./nbody_cpp $(N)
 
 	@echo "-----------LISP----------------"
-	@time sbcl --dynamic-space-size 500 --noinform --core nbody_lisp --userinit /dev/null --eval '(time (main))' --eval '(quit)' $(N)
+	@time sbcl --dynamic-space-size 500 --noinform --core nbody_lisp --userinit /dev/null --eval '(time (nbody::main))' --eval '(quit)' $(N)
