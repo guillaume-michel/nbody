@@ -75,8 +75,8 @@
   (let* ((dx (- (x a) (x b)))
          (dy (- (y a) (y b)))
          (dz (- (z a) (z b)))
-	       (distance (sqrt (+ (* dx dx) (* dy dy) (* dz dz))))
-	       (mag (/ dt (* distance distance distance)))
+         (distance (sqrt (+ (* dx dx) (* dy dy) (* dz dz))))
+         (mag (/ dt (* distance distance distance)))
          (dxmag (* dx mag))
          (dymag (* dy mag))
          (dzmag (* dz mag)))
@@ -118,8 +118,8 @@
 
 (defun offset-momentum (system)
   (let ((px 0.0d0)
-	      (py 0.0d0)
-	      (pz 0.0d0))
+        (py 0.0d0)
+        (pz 0.0d0))
     (declare (type double-float px py pz))
     (dolist (p system)
       (incf px (* (vx p) (mass p)))
@@ -142,5 +142,5 @@
 (defun main ()
   (let ((n (parse-integer (or (car (last #+sbcl sb-ext:*posix-argv*
                                          #+cmu  extensions:*command-line-strings*
-					                               #+gcl  si::*command-args*)) "1"))))
+                                         #+gcl  si::*command-args*)) "1"))))
     (nbody n)))
