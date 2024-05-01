@@ -1,5 +1,6 @@
 use num::{Float, Zero};
 use rand::{distributions::Uniform, Rng};
+use rayon::prelude::*;
 use std::iter;
 
 #[derive(Debug, Copy, Clone)]
@@ -106,27 +107,27 @@ where
 }
 
 pub fn compute_accelerations<T>(
-    positions: &Vec<Vec3<T>>,
-    masses: &Vec<T>,
-    accelerations: &mut Vec<Vec3<T>>,
+    positions: &[Vec3<T>],
+    masses: &[T],
+    accelerations: &mut [Vec3<T>],
     softening: T,
     g: T,
 ) where
-    T: Float,
+    T: Float + Send + Sync,
 {
-    for i in 0..positions.len() {
-        let mut acceleration = Vec3::<T>::zero();
+    positions
+        .par_iter()
+        .zip(masses.par_iter())
+        .zip(accelerations.par_iter_mut())
+        .for_each(|((pi, mi), ai)| {
+            let mut acceleration = Vec3::<T>::zero();
 
-        let pi = positions[i];
-        let mi = masses[i];
+            positions.iter().zip(&masses[..]).for_each(|(pj, mj)| {
+                acceleration = acceleration + compute_gravity(*pi, *mi, *pj, *mj, softening, g);
+            });
 
-        for j in 0..positions.len() {
-            acceleration =
-                acceleration + compute_gravity(pi, mi, positions[j], masses[j], softening, g);
-        }
-
-        accelerations[i] = acceleration;
-    }
+            *ai = acceleration;
+        });
 }
 
 pub fn kinematic<T>(position: Vec3<T>, velocity: Vec3<T>, acceleration: Vec3<T>, dt: T) -> Vec3<T>
@@ -137,19 +138,23 @@ where
 }
 
 pub fn move_particules<T>(
-    positions: &mut Vec<Vec3<T>>,
-    velocities: &mut Vec<Vec3<T>>,
-    accelerations: &Vec<Vec3<T>>,
+    positions: &mut [Vec3<T>],
+    velocities: &mut [Vec3<T>],
+    accelerations: &[Vec3<T>],
     dt: T,
 ) where
-    T: Float,
+    T: Float + Send + Sync,
 {
-    for i in 0..positions.len() {
-        let ai = accelerations[i];
-        let vi = ai * dt + velocities[i];
-        positions[i] = kinematic(positions[i], vi, ai, dt);
-        velocities[i] = vi;
-    }
+    positions
+        .par_iter_mut()
+        .zip(accelerations.par_iter())
+        .zip(velocities.par_iter_mut())
+        .for_each(|((p, a), v)| {
+            let ai = *a;
+            let vi = ai * dt + *v;
+            *p = kinematic(*p, vi, ai, dt);
+            *v = vi;
+        });
 }
 
 fn main() {
