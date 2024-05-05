@@ -1,4 +1,5 @@
 #include <cooperative_groups.h>
+#include <cooperative_groups/memcpy_async.h>
 #include <cuda_runtime.h>
 
 #include <array>
@@ -32,11 +33,11 @@ __device__ double rsqrt_T<double>(double x) {
 }
 
 template <typename T, size_t N>
-__device__ std::array<T, N> bodyBodyInteraction(std::array<T, N> ai, const std::array<T, N>& bi,
+__device__ std::array<T, N> bodyBodyInteraction(std::array<T, N> ai, const std::array<T, N + 1>& bi,
                                                 const std::array<T, N + 1>& bj) {
   // r_ij  [3 FLOPS]
   std::array<T, N> r;
-  //#pragma unroll
+  // #pragma unroll
   for (size_t k = 0; k < N; ++k) {
     r[k] = bj[k] - bi[k];
   }
@@ -45,7 +46,7 @@ __device__ std::array<T, N> bodyBodyInteraction(std::array<T, N> ai, const std::
   // const T dist_sqr = r.x * r.x + r.y * r.y + r.z * r.z + getSofteningSquared<T>();
 
   T dist_sqr = T(0);
-  //#pragma unroll
+  // #pragma unroll
   for (size_t k = 0; k < N; ++k) {
     dist_sqr += r[k] * r[k];
   }
@@ -59,7 +60,7 @@ __device__ std::array<T, N> bodyBodyInteraction(std::array<T, N> ai, const std::
   const T s = bj[N] * inv_dist_cube;
 
   // a_i =  a_i + s * r_ij [6 FLOPS]
-  //#pragma unroll
+  // #pragma unroll
   for (size_t k = 0; k < N; ++k) {
     ai[k] += r[k] * s;
   }
@@ -68,41 +69,53 @@ __device__ std::array<T, N> bodyBodyInteraction(std::array<T, N> ai, const std::
 }
 
 template <typename T, size_t N>
-__device__ std::array<T, N> computeBodyAccel(const std::array<T, N>& body_position,
-                                             const std::array<T, N>* positions, const T* masses,
-                                             unsigned int numTiles, cg::thread_block cta) {
-  extern __shared__ std::array<T, N + 1> shared_pos[];
+__device__ std::array<T, N> computeBodyAccel(const std::array<T, N + 1>& body_position,
+                                             const std::array<T, N + 1>* positions,
+                                             unsigned int num_bodies, cg::thread_block cta) {
+  constexpr size_t block_size = 384;
+  extern __align__(16) __shared__ std::array<T, N + 1> shared_pos[2][block_size];
 
   std::array<T, N> acc = {T(0)};
 
-  for (int tile = 0; tile < numTiles; tile++) {
-    {
-      auto index = tile * blockDim.x + threadIdx.x;
-      auto p = positions[index];
-      //#pragma unroll
-      for (size_t k = 0; k < N; ++k) {
-        shared_pos[threadIdx.x][k] = p[k];
-      }
-      shared_pos[threadIdx.x][N] = masses[index];
-    }
-    cg::sync(cta);
+  int stage = 0;
+  cg::memcpy_async(cta, shared_pos[stage], positions, block_size * sizeof(std::array<T, N + 1>));
+
+  int index = block_size;
+
+  while (index < num_bodies) {
+    cg::memcpy_async(cta, shared_pos[stage ^ 1], positions + index,
+                     block_size * sizeof(std::array<T, N + 1>));
+
+    cg::wait_prior<1>(cta);
 
 // This is the "tile_calculation" from the GPUG3 article.
-    //#pragma unroll 128
+#pragma unroll 128
     for (unsigned int counter = 0; counter < blockDim.x; ++counter) {
-      acc = bodyBodyInteraction(acc, body_position, shared_pos[counter]);
+      acc = bodyBodyInteraction(acc, body_position, shared_pos[stage][counter]);
     }
 
     cg::sync(cta);
+
+    index += block_size;
+
+    stage ^= 1;
+  }
+
+  cg::wait(cta);
+
+  // This is the "tile_calculation" from the GPUG3 article.
+#pragma unroll 128
+  for (unsigned int counter = 0; counter < blockDim.x; ++counter) {
+    acc = bodyBodyInteraction(acc, body_position, shared_pos[stage][counter]);
   }
 
   return acc;
 }
 
 template <typename T, size_t N>
-__global__ void integrateBodiesKernel(std::array<T, N>* __restrict__ output_positions,
-                                      const std::array<T, N>* __restrict__ input_positions,
-                                      std::array<T, N>* __restrict__ velocities, const T* masses,
+__global__ void integrateBodiesKernel(std::array<T, N + 1>* __restrict__ output_positions,
+                                      const std::array<T, N + 1>* __restrict__ input_positions,
+                                      std::array<T, N + 1>* __restrict__ velocities,
                                       unsigned int num_bodies, T delta_time, T damping,
                                       unsigned int num_tiles) {
   // Handle to thread block group
@@ -116,7 +129,7 @@ __global__ void integrateBodiesKernel(std::array<T, N>* __restrict__ output_posi
 
   auto position = input_positions[index];
 
-  auto accel = computeBodyAccel(position, input_positions, masses, num_tiles, cta);
+  auto accel = computeBodyAccel<T, N>(position, input_positions, num_bodies, cta);
 
   // acceleration = force / mass;
   // new velocity = old velocity + acceleration * deltaTime
@@ -125,18 +138,18 @@ __global__ void integrateBodiesKernel(std::array<T, N>* __restrict__ output_posi
   // (because they cancel out).  Thus here force == acceleration
   auto velocity = velocities[index];
 
-  //#pragma unroll
+  // #pragma unroll
   for (size_t k = 0; k < N; ++k) {
     velocity[k] += accel[k] * delta_time;
   }
 
-  //#pragma unroll
+  // #pragma unroll
   for (size_t k = 0; k < N; ++k) {
     velocity[k] *= damping;
   }
 
   // new position = old position + velocity * deltaTime
-  //#pragma unroll
+  // #pragma unroll
   for (size_t k = 0; k < N; ++k) {
     position[k] += velocity[k] * delta_time;
   }
@@ -147,29 +160,29 @@ __global__ void integrateBodiesKernel(std::array<T, N>* __restrict__ output_posi
 }
 
 template <typename T, size_t N>
-cudaError_t integrateNbodySystem(const std::array<T, N>* input_positions,
-                                 std::array<T, N>* velocities, const T* masses, size_t num_bodies,
-                                 std::array<T, N>* output_positions, T delta_time, T damping,
+cudaError_t integrateNbodySystem(const std::array<T, N + 1>* input_positions,
+                                 std::array<T, N + 1>* velocities, size_t num_bodies,
+                                 std::array<T, N + 1>* output_positions, T delta_time, T damping,
                                  size_t block_size, cudaStream_t stream) {
   size_t num_blocks = (num_bodies + block_size - 1) / block_size;
   size_t num_tiles = (num_bodies + block_size - 1) / block_size;
-  size_t shared_mem_size = block_size * (N + 1) * sizeof(T);  // N floats for pos + 1 float for mass
+  size_t shared_mem_size = 2 * block_size * (N + 1) *
+                           sizeof(T);  // N floats for pos + 1 float for mass with double buffering
 
   integrateBodiesKernel<T, N><<<num_blocks, block_size, shared_mem_size, stream>>>(
-      output_positions, input_positions, velocities, masses, num_bodies, delta_time, damping,
-      num_tiles);
+      output_positions, input_positions, velocities, num_bodies, delta_time, damping, num_tiles);
 
   return cudaGetLastError();
 }
 
 template <typename T, size_t N>
-cudaError_t integrateNbodySystem(const T* input_positions, T* velocities, const T* masses,
-                                 size_t num_bodies, T* output_positions, T delta_time, T damping,
-                                 size_t block_size, cudaStream_t stream) {
-  return integrateNbodySystem(reinterpret_cast<const std::array<T, N>*>(input_positions),
-                              reinterpret_cast<std::array<T, N>*>(velocities), masses, num_bodies,
-                              reinterpret_cast<std::array<T, N>*>(output_positions), delta_time,
-                              damping, block_size, stream);
+cudaError_t integrateNbodySystem(const T* input_positions, T* velocities, size_t num_bodies,
+                                 T* output_positions, T delta_time, T damping, size_t block_size,
+                                 cudaStream_t stream) {
+  return integrateNbodySystem<T, N>(reinterpret_cast<const std::array<T, N + 1>*>(input_positions),
+                                    reinterpret_cast<std::array<T, N + 1>*>(velocities), num_bodies,
+                                    reinterpret_cast<std::array<T, N + 1>*>(output_positions),
+                                    delta_time, damping, block_size, stream);
 }
 
 }  // namespace
@@ -212,11 +225,11 @@ cudaError_t setSofteningSquaredF64(double softeningSq, cudaStream_t stream) {
 // }
 
 cudaError_t integrateNbodySystem3DF64(const double* input_positions, double* velocities,
-                                      const double* masses, size_t num_bodies,
-                                      double* output_positions, double delta_time, double damping,
-                                      size_t block_size, cudaStream_t stream) {
-  return integrateNbodySystem<double, 3>(input_positions, velocities, masses, num_bodies,
-                                         output_positions, delta_time, damping, block_size, stream);
+                                      size_t num_bodies, double* output_positions,
+                                      double delta_time, double damping, size_t block_size,
+                                      cudaStream_t stream) {
+  return integrateNbodySystem<double, 3>(input_positions, velocities, num_bodies, output_positions,
+                                         delta_time, damping, block_size, stream);
 }
 
 #ifdef __cplusplus

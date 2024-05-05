@@ -214,30 +214,27 @@ fn run_gpu() -> CudaResult<()> {
     let _g = 1f64;
     let softening = 1f64;
 
-    let num_bodies = 10240usize;
+    let num_bodies = 1024000usize;
 
     let min_value = -2f64;
     let max_value = 2f64;
 
     let dt = 0.01f64;
 
-    let block_size = 512usize;
+    let block_size = 384usize;
 
     let stream = CudaStream::create_with_flags(cudart_sys::ffi::cudaStreamNonBlocking)?;
 
-    let mut h_positions = generate_uniform_random(3 * num_bodies, min_value, max_value, &mut rng);
-    let h_velocities = generate_uniform_random(3 * num_bodies, min_value, max_value, &mut rng);
-    let h_masses: Vec<f64> = iter::repeat(1f64).take(num_bodies).collect();
+    let mut h_positions = generate_uniform_random(4 * num_bodies, min_value, max_value, &mut rng);
+    let h_velocities = generate_uniform_random(4 * num_bodies, min_value, max_value, &mut rng);
 
     unsafe {
-        let mut d_positions1: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 3, &stream)?;
-        let mut d_positions2: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 3, &stream)?;
-        let mut d_velocities: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 3, &stream)?;
-        let mut d_masses: DeviceBuffer<f64> = cuda_malloc_async(num_bodies, &stream)?;
+        let mut d_positions1: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 4, &stream)?;
+        let mut d_positions2: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 4, &stream)?;
+        let mut d_velocities: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 4, &stream)?;
 
         cuda_memcpy_h2d_async(&mut d_positions1, &h_positions, &stream)?;
         cuda_memcpy_h2d_async(&mut d_velocities, &h_velocities, &stream)?;
-        cuda_memcpy_h2d_async(&mut d_masses, &h_masses, &stream)?;
 
         nbody_cuda_kernels::cuda::set_softening_squared_f64(softening, &stream)?;
 
@@ -245,7 +242,6 @@ fn run_gpu() -> CudaResult<()> {
             nbody_cuda_kernels::cuda::integrate_nbody_system_3d_f64(
                 &d_positions1,
                 &mut d_velocities,
-                &d_masses,
                 num_bodies,
                 &mut d_positions2,
                 dt,
@@ -257,7 +253,6 @@ fn run_gpu() -> CudaResult<()> {
             nbody_cuda_kernels::cuda::integrate_nbody_system_3d_f64(
                 &d_positions2,
                 &mut d_velocities,
-                &d_masses,
                 num_bodies,
                 &mut d_positions1,
                 dt,
@@ -271,7 +266,6 @@ fn run_gpu() -> CudaResult<()> {
         cuda_free_async(d_positions1, &stream)?;
         cuda_free_async(d_positions2, &stream)?;
         cuda_free_async(d_velocities, &stream)?;
-        cuda_free_async(d_masses, &stream)?;
 
         stream.synchronize()?;
     }

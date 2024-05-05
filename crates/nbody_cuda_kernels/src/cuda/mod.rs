@@ -8,7 +8,6 @@ mod ffi {
         pub fn integrateNbodySystem3DF64(
             input_positions: *const f64,
             velocities: *mut f64,
-            masses: *const f64,
             num_bodies: usize,
             output_positions: *mut f64,
             delta_time: f64,
@@ -29,7 +28,6 @@ mod ffi {
 pub fn integrate_nbody_system_3d_f64(
     input_positions: &cudart_sys::memory::DeviceBuffer<f64>,
     velocities: &mut cudart_sys::memory::DeviceBuffer<f64>,
-    masses: &cudart_sys::memory::DeviceBuffer<f64>,
     num_bodies: usize,
     output_positions: &mut cudart_sys::memory::DeviceBuffer<f64>,
     delta_time: f64,
@@ -41,7 +39,6 @@ pub fn integrate_nbody_system_3d_f64(
         crate::cuda::ffi::integrateNbodySystem3DF64(
             input_positions.ptr as _,
             velocities.ptr as _,
-            masses.ptr as _,
             num_bodies,
             output_positions.ptr as _,
             delta_time,
