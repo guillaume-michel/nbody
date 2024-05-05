@@ -3,6 +3,8 @@ use rand::{distributions::Uniform, Rng};
 use rayon::prelude::*;
 use std::iter;
 
+use cudart_sys::{error::*, memory::*, stream::*};
+
 #[derive(Debug, Copy, Clone)]
 pub struct Vec3<T> {
     pub x: T,
@@ -70,6 +72,15 @@ pub fn distance2<T: Float>(p1: Vec3<T>, p2: Vec3<T>) -> T {
 
 pub fn distance<T: Float>(p1: Vec3<T>, p2: Vec3<T>) -> T {
     (p1 - p2).norm()
+}
+
+pub fn generate_uniform_random<T, R>(n: usize, min_value: T, max_value: T, rng: &mut R) -> Vec<T>
+where
+    R: Rng,
+    T: rand::distributions::uniform::SampleUniform,
+{
+    let range = Uniform::new(min_value, max_value);
+    (0..n).map(|_| rng.sample(&range)).collect()
 }
 
 pub fn generate_uniform_random_vec3<T, R>(
@@ -157,7 +168,7 @@ pub fn move_particules<T>(
         });
 }
 
-fn main() {
+fn run_cpu() {
     let mut rng = rand::thread_rng();
 
     let num_steps = 1000usize;
@@ -193,4 +204,85 @@ fn main() {
     // println!("{:?}", positions);
     // println!("{:?}", velocities);
     // println!("{:?}", accelerations);
+}
+
+fn run_gpu() -> CudaResult<()> {
+    let mut rng = rand::thread_rng();
+
+    let num_steps = 2usize;
+
+    let _g = 1f64;
+    let softening = 1f64;
+
+    let num_bodies = 10240usize;
+
+    let min_value = -2f64;
+    let max_value = 2f64;
+
+    let dt = 0.01f64;
+
+    let block_size = 512usize;
+
+    let stream = CudaStream::create_with_flags(cudart_sys::ffi::cudaStreamNonBlocking)?;
+
+    let mut h_positions = generate_uniform_random(3 * num_bodies, min_value, max_value, &mut rng);
+    let h_velocities = generate_uniform_random(3 * num_bodies, min_value, max_value, &mut rng);
+    let h_masses: Vec<f64> = iter::repeat(1f64).take(num_bodies).collect();
+
+    unsafe {
+        let mut d_positions1: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 3, &stream)?;
+        let mut d_positions2: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 3, &stream)?;
+        let mut d_velocities: DeviceBuffer<f64> = cuda_malloc_async(num_bodies * 3, &stream)?;
+        let mut d_masses: DeviceBuffer<f64> = cuda_malloc_async(num_bodies, &stream)?;
+
+        cuda_memcpy_h2d_async(&mut d_positions1, &h_positions, &stream)?;
+        cuda_memcpy_h2d_async(&mut d_velocities, &h_velocities, &stream)?;
+        cuda_memcpy_h2d_async(&mut d_masses, &h_masses, &stream)?;
+
+        nbody_cuda_kernels::cuda::set_softening_squared_f64(softening, &stream)?;
+
+        for _ in 0..num_steps / 2 {
+            nbody_cuda_kernels::cuda::integrate_nbody_system_3d_f64(
+                &d_positions1,
+                &mut d_velocities,
+                &d_masses,
+                num_bodies,
+                &mut d_positions2,
+                dt,
+                1f64,
+                block_size,
+                &stream,
+            )?;
+
+            nbody_cuda_kernels::cuda::integrate_nbody_system_3d_f64(
+                &d_positions2,
+                &mut d_velocities,
+                &d_masses,
+                num_bodies,
+                &mut d_positions1,
+                dt,
+                1f64,
+                block_size,
+                &stream,
+            )?;
+        }
+        cuda_memcpy_d2h_async(&mut h_positions, &d_positions2, &stream)?;
+
+        cuda_free_async(d_positions1, &stream)?;
+        cuda_free_async(d_positions2, &stream)?;
+        cuda_free_async(d_velocities, &stream)?;
+        cuda_free_async(d_masses, &stream)?;
+
+        stream.synchronize()?;
+    }
+
+    // println!("{:?}", h_positions);
+
+    Ok(())
+}
+
+fn main() {
+    run_gpu().unwrap();
+
+    run_cpu();
 }

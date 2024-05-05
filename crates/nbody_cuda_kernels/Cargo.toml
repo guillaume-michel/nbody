@@ -1,5 +1,5 @@
 [package]
-name = "nbodysim"
+name = "nbody_cuda_kernels"
 version.workspace = true
 authors.workspace = true
 description.workspace = true
@@ -9,8 +9,7 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-num.workspace = true
-rand.workspace = true
-rayon.workspace = true
 cudart-sys.workspace = true
-nbody_cuda_kernels.workspace = true
+
+[build-dependencies]
+bindgen_cuda = "0.1.5"

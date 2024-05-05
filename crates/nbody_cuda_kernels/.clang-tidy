@@ -1,0 +1,72 @@
+Checks: '-*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  google-*,
+  hicpp-*,
+  llvm-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -readability-avoid-const-params-in-decls,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -hicpp-uppercase-literal-suffix,
+  -readability-uppercase-literal-suffix,
+  -readability-qualified-auto,
+  -google-build-using-namespace,
+  -modernize-use-nodiscard,
+  -google-runtime-references,
+  -hicpp-use-emplace,
+  -hicpp-signed-bitwise,
+  -modernize-use-emplace,
+  -readability-convert-member-functions-to-static,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -llvm-else-after-return,
+  -readability-else-after-return,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -misc-non-private-member-variables-in-classes,
+  -readability-identifier-length,
+  -google-readability-casting'
+
+CheckOptions:    
+  - key:             readability-identifier-naming.ClassCase
+    value:           'CamelCase'
+  - key:             readability-identifier-naming.ClassPrefix
+    value:           ''
+  - key:             readability-identifier-naming.ClassSuffix
+    value:           ''
+  - key:             readability-identifier-naming.FunctionCase
+    value:           'camelBack'
+  - key:             readability-identifier-naming.FunctionPrefix
+    value:           ''
+  - key:             readability-identifier-naming.FunctionSuffix
+    value:           ''
+  - key:             readability-identifier-naming.NamespaceCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.NamespacePrefix
+    value:           ''
+  - key:             readability-identifier-naming.NamespaceSuffix
+    value:           ''
+  - key:             readability-identifier-naming.PrivateMemberPrefix
+    value:           ''
+  - key:             readability-identifier-naming.PrivateMemberSuffix
+    value:           '_'
+  - key:             readability-identifier-naming.StructCase
+    value:           'CamelCase'
+  - key:             readability-identifier-naming.StructPrefix
+    value:           ''
+  - key:             readability-identifier-naming.StructSuffix
+    value:           ''
+  - key:             readability-identifier-naming.VariableCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.VariablePrefix
+    value:           ''
+  - key:             readability-identifier-naming.VariableSuffix
+    value:           ''
