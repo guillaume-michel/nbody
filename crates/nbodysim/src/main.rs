@@ -168,15 +168,13 @@ pub fn move_particules<T>(
         });
 }
 
-fn run_cpu() {
+fn run_cpu(num_bodies: usize) {
     let mut rng = rand::thread_rng();
 
-    let num_steps = 1000usize;
+    let num_steps = 2usize;
 
     let g = 1f64;
     let softening = 1f64;
-
-    let num_bodies = 1000usize;
 
     let min_value = -2f64;
     let max_value = 2f64;
@@ -206,15 +204,13 @@ fn run_cpu() {
     // println!("{:?}", accelerations);
 }
 
-fn run_gpu() -> CudaResult<()> {
+fn run_gpu(num_bodies: usize) -> CudaResult<()> {
     let mut rng = rand::thread_rng();
 
     let num_steps = 2usize;
 
     let _g = 1f64;
     let softening = 1f64;
-
-    let num_bodies = 1024000usize;
 
     let min_value = -2f64;
     let max_value = 2f64;
@@ -276,7 +272,9 @@ fn run_gpu() -> CudaResult<()> {
 }
 
 fn main() {
-    run_gpu().unwrap();
+    let num_bodies = 1024000;
 
-    run_cpu();
+    //run_gpu(num_bodies).unwrap();
+
+    run_cpu(num_bodies);
 }
