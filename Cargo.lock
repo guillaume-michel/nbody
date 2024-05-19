@@ -18,6 +18,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1fdabc7756949593fe60f30ec81974b613357de856987752631dea1e3394c80"
 
 [[package]]
+name = "bench_memory"
+version = "0.0.0"
+dependencies = [
+ "bench_memory_cuda_kernels",
+ "cudart-sys",
+ "num",
+ "rand",
+ "rayon",
+]
+
+[[package]]
+name = "bench_memory_cuda_kernels"
+version = "0.0.0"
+dependencies = [
+ "bindgen_cuda",
+ "cudart-sys",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.69.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -17,4 +17,5 @@ rand = "0.8.5"
 rayon = "1.10.0"
 cudart-sys = { path = "crates/cudart-sys", version = "0.0.0" }
 nbody_cuda_kernels = { path = "crates/nbody_cuda_kernels", version = "0.0.0" }
+bench_memory_cuda_kernels = { path = "crates/bench_memory_cuda_kernels", version = "0.0.0" }
 
